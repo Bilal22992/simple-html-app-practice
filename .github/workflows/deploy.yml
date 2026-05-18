@@ -10,36 +10,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout code
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Checkout
-      uses: actions/checkout@v3
+      # 2. Login to DockerHub
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-    - name: Login to DockerHub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      # 3. Build Docker Image
+      - name: Build Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/html-app:latest .
 
-    - name: Build Image
-      run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/html-app:latest .
+      # 4. Push Docker Image
+      - name: Push Image
+        run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/html-app:latest
 
-    - name: Push Image
-      run: |
-        docker push ${{ secrets.DOCKER_USERNAME }}/html-app:latest
+      # 5. Update Kubernetes Manifest Repo (SAFE FIX)
+      - name: Update Manifest Repo
+        run: |
+          git config --global user.email "haiderbilal22992@gmail.com"
+          git config --global user.name "Bilal22992"
 
-    - name: Update Manifest Repo
-      run: |
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ secrets.MANIFEST_REPO }}/k8s-manifests.git
+          cd k8s-manifests
 
-        git config --global user.email "haiderbilal22992@gmail.com"
-        git config --global user.name "Bilal22992"
+          # Update image in deployment.yaml
+          sed -i 's|image:.*|image: '${{ secrets.DOCKER_USERNAME }}'/html-app:latest|g' deployment.yaml
 
-        git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ secrets.MANIFEST_REPO }}/k8s-manifests.git
+          git add .
 
-        cd k8s-manifests
+          # 🔥 SAFE COMMIT (prevents pipeline failure)
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
 
-        sed -i 's|image:.*|image: '${{ secrets.DOCKER_USERNAME }}'/html-app:latest|g' deployment.yaml
-
-        git add .
-        git commit -m "update image"
-        git push
+          git commit -m "update image"
+          git push
