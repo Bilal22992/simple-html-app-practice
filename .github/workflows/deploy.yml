@@ -14,42 +14,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Login to DockerHub
+      # 2. Set image version (IMPORTANT FIX)
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=v${{ github.run_number }}" >> $GITHUB_ENV
+
+      # 3. Login to DockerHub
       - name: Login to DockerHub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 3. Build Docker Image
+      # 4. Build Docker Image (VERSIONED)
       - name: Build Image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/html-app:latest .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/html-app:${{ env.IMAGE_TAG }} .
+          docker tag ${{ secrets.DOCKER_USERNAME }}/html-app:${{ env.IMAGE_TAG }} \
+                     ${{ secrets.DOCKER_USERNAME }}/html-app:latest
 
-      # 4. Push Docker Image
+      # 5. Push Image
       - name: Push Image
         run: |
+          docker push ${{ secrets.DOCKER_USERNAME }}/html-app:${{ env.IMAGE_TAG }}
           docker push ${{ secrets.DOCKER_USERNAME }}/html-app:latest
 
-      # 5. Update Kubernetes Manifest Repo (SAFE FIX)
+      # 6. Update Kubernetes Manifest Repo (GitOps FIX)
       - name: Update Manifest Repo
         run: |
-          git config --global user.email "haiderbilal22992@gmail.com"
-          git config --global user.name "Bilal22992"
+          git config --global user.email "you@example.com"
+          git config --global user.name "github-actions"
 
           git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ secrets.MANIFEST_REPO }}/k8s-manifests.git
           cd k8s-manifests
 
-          # Update image in deployment.yaml
-          sed -i 's|image:.*|image: '${{ secrets.DOCKER_USERNAME }}'/html-app:latest|g' deployment.yaml
+          # 🔥 IMPORTANT: update to new version tag
+          sed -i "s|image:.*|image: ${{ secrets.DOCKER_USERNAME }}/html-app:${{ env.IMAGE_TAG }}|g" deployment.yaml
 
           git add .
 
-          # 🔥 SAFE COMMIT (prevents pipeline failure)
+          # prevent failure if no changes
           if git diff --cached --quiet; then
             echo "No changes to commit"
             exit 0
           fi
 
-          git commit -m "update image"
+          git commit -m "deploy ${{ env.IMAGE_TAG }}"
           git push
