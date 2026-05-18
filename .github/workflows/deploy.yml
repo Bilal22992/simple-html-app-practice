@@ -31,8 +31,8 @@ jobs:
     - name: Update Manifest Repo
       run: |
 
-        git config --global user.email "github-actions@github.com"
-        git config --global user.name "github-actions"
+        git config --global user.email "haiderbilal22992@gmail.com"
+        git config --global user.name "Bilal22992"
 
         git clone https://${{ secrets.GH_TOKEN }}@github.com/${{ secrets.MANIFEST_REPO }}/k8s-manifests.git
 
